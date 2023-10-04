@@ -6,24 +6,9 @@
   "configurations": [
     {
       "type": "java",
-      "name": "Launch S3Config",
-      "request": "launch",
-      "mainClass": "kr.co.automl.global.config.s3.S3Config",
-      "projectName": "admin-server"
-    },
-    {
-      "type": "java",
       "name": "Launch Current File",
       "request": "launch",
       "mainClass": "${file}",
-      "args": "--spring.profiles.active=local"
-    },
-    {
-      "type": "java",
-      "name": "Launch App",
-      "request": "launch",
-      "mainClass": "kr.co.automl.App",
-      "projectName": "admin-server",
       "args": "--spring.profiles.active=local"
     },
     {

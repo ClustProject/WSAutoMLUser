@@ -61,13 +61,6 @@ subprojects {
 
 }
 
-project(':app:admin-server') {
-    dependencies {
-        implementation project(':app:common')
-        testImplementation(testFixtures(project(":app:common")))
-    }
-}
-
 project(':app:user-server') {
     dependencies {
         implementation project(':app:common')
