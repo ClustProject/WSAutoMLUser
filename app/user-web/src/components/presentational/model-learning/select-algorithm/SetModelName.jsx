@@ -7,6 +7,7 @@ import {
   DialogActions,
   DialogContentText,
   TextField,
+  Divider,
 } from "@mui/material";
 
 function SetModelName(props) {
@@ -26,7 +27,7 @@ function SetModelName(props) {
     setAlertOpen(false);
     getNavigationContent();
     onClose();
-    // window.location.href = "/model-operation";
+    window.location.href = "/model-operation";
   };
 
   function getNavigationContent() {
@@ -57,6 +58,7 @@ function SetModelName(props) {
     <>
       <Dialog open={open} onClose={onClose}>
         <DialogTitle>모델명 입력</DialogTitle>
+        <Divider />
         <DialogContent>
           <DialogContentText>* 저장할 모델명을 입력해주세요.</DialogContentText>
           <TextField
