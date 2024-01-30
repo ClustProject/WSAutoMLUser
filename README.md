@@ -43,8 +43,10 @@ WS-AutoML은 클라우드 기반의 시계열 데이터 활용을 위한 오픈 
 
   - 모델 운영
     ![user-service-model-operation.png](images/user-service-model-operation.png)
-    - 알고리즘 선택 및 파라미터 설정 후 모델 생성
+
+    - 모델 활용(데이터 보간 및 예측)
       ![user-service-model-utilization.png](images/user-service-model-utilization.png)
+
 ### 주요 기술
 
 ---
