@@ -4,6 +4,7 @@ cloud:
       static: ap-northeast-2
     s3:
       bucketName: ${S3_BUCKET_NAME}
+      secondBucketName: ${S3_SECOND_BUCKET_NAME}
     stack:
       auto: false
     credentials:
@@ -54,6 +55,7 @@ spring:
             scope: profile, email
             client-id: ${GOOGLE_OAUTH2_CLIENT_ID}
             client-secret: ${GOOGLE_OAUTH2_CLIENT_SECRET}
+            # redirect-uri: "https://wsautoml.com/login/oauth2/code/google" # prod settings // local settings에서는 주석 처리 할 것
 
 logging:
   level:
@@ -70,7 +72,7 @@ spring:
   config:
     activate:
       # on-profile: local # local settings
-      on-profile: prod
+      on-profile: prod # prod settings
 
   datasource:
     url: jdbc:mariadb://${DATABASE_URL}:3306/automl

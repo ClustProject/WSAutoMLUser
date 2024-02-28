@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { styled } from "@mui/system";
+import { useAuth } from "../../../authentication/AuthContext";
 import {
   Box,
   Dialog,
@@ -35,9 +36,20 @@ const ModelTimeSeriesProcesser = (props) => {
   const [uploadedFileUrl, setUploadedFileUrl] = useState(null);
   const [selectData, setSelectData] = useState("");
   const [payload, setPayload] = useState([]);
-  // const [predictData, setPredictData] = useState("");
+  const { user } = useAuth();
+  const [isStarted, setIsStarted] = useState(false); // 모델 활용 진행 상태를 위한 state 추가
+  const [isLoading, setIsLoading] = useState(false); // 버튼의 로딩 상태를 위한 state 추가
+  const [work, setWork] = useState(""); // 수행할 작업
 
-  console.log(payload);
+  // 모달이 열릴 때 마다 초기화
+  useEffect(() => {
+    if (open) {
+      setUploadedFileUrl(null);
+      setSelectData("");
+      setPayload([]);
+      setIsStarted(false);
+    }
+  }, [open]);
 
   useEffect(() => {
     if (
@@ -49,12 +61,20 @@ const ModelTimeSeriesProcesser = (props) => {
       const feature = [];
       let target = "";
 
-      Object.keys(selectedRowData.varUseYnJSON).forEach((index) => {
-        if (selectedRowData.varUseYnJSON[index] === "Y") {
-          feature.push(selectedRowData.varNmJSON[index]);
-        }
+      // target 찾기
+      Object.keys(selectedRowData.varTgYnJSON).forEach((index) => {
         if (selectedRowData.varTgYnJSON[index] === "Y") {
           target = selectedRowData.varNmJSON[index];
+        }
+      });
+
+      // feature 배열 채우기 (target 제외)
+      Object.keys(selectedRowData.varUseYnJSON).forEach((index) => {
+        if (
+          selectedRowData.varUseYnJSON[index] === "Y" &&
+          selectedRowData.varNmJSON[index] !== target
+        ) {
+          feature.push(selectedRowData.varNmJSON[index]);
         }
       });
 
@@ -71,6 +91,8 @@ const ModelTimeSeriesProcesser = (props) => {
         // feature: ["집계시분", "콘존ID", "차로유형구분코드"],
         // target: "평균속도",
         // window_size: 144,
+        user_id: user.id,
+        ml_result_id: selectedRowData.id,
         data_url: uploadedFileUrl,
         road_url:
           "https://automl-file-storage-test.s3.ap-northeast-2.amazonaws.com/road_data.csv",
@@ -86,14 +108,14 @@ const ModelTimeSeriesProcesser = (props) => {
     setSelectData(event.target.value);
   };
 
-  const [isLoading, setIsLoading] = useState(false); // 버튼의 로딩 상태를 위한 state 추가
-  // const [predictionResultButtonDisabled, setPredictionResultButtonDisabled] =
-  useState(true); // 예측 결과 버튼 활성화 상태를 위한 state 추가
-
   const startPrediction = () => {
+    setIsStarted(false);
     setIsLoading(true); // 로딩 시작
-    console.log("Sending data:", payload);
-    fetch("http://52.79.123.200:8797/v1/data_predict", {
+    // console.log("Sending data:", payload);
+
+    const url = `http://52.79.123.200:8797/v1/${selectData}`;
+
+    fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -102,15 +124,14 @@ const ModelTimeSeriesProcesser = (props) => {
     })
       .then((response) => response.json())
       .then((data) => {
-        console.log("Received data:", data);
-        // setPredictData(data);
+        // console.log("Received data:", data);
       })
       .catch((error) => console.error("Error occurred:", error));
 
     setTimeout(() => {
       setIsLoading(false); // 5초 후 로딩 상태 종료
-      // setPredictionResultButtonDisabled(false); // 예측 결과 버튼 활성화
-    }, 5000);
+      setIsStarted(true);
+    }, 1000);
   };
 
   return (
@@ -167,7 +188,7 @@ const ModelTimeSeriesProcesser = (props) => {
                     모델 활용에 필요한 업로드 파일 형식
                     <Tooltip
                       title='업로드 파일의 컬럼 및 데이터 예시를 나타냅니다. 파란색으로 표시된 컬럼은 목표변수를 의미합니다.'
-                      placement='bottom'
+                      placement='right'
                     >
                       <InfoIcon color='primary' />
                     </Tooltip>
@@ -184,6 +205,7 @@ const ModelTimeSeriesProcesser = (props) => {
                 selectedRowData={selectedRowData ? selectedRowData : null}
               />
               <UploadFile setUploadedFileUrl={setUploadedFileUrl} />
+
               <SpaceBetweenFlexBox>
                 <FormControl variant='standard' sx={{ m: 1, width: "300px" }}>
                   <InputLabel id='demo-simple-select-label'>
@@ -196,10 +218,8 @@ const ModelTimeSeriesProcesser = (props) => {
                     label='Data'
                     onChange={handleChange}
                   >
-                    <MenuItem value={"data_interpolation"}>
-                      데이터 보간
-                    </MenuItem>
-                    <MenuItem value={"data_prediction"}>데이터 예측</MenuItem>
+                    <MenuItem value={"data_interpolate"}>데이터 보간</MenuItem>
+                    <MenuItem value={"data_predict"}>데이터 예측</MenuItem>
                   </Select>
                 </FormControl>
                 <LoadingButton
@@ -208,7 +228,13 @@ const ModelTimeSeriesProcesser = (props) => {
                   loadingPosition='end'
                   onClick={() => {
                     startPrediction();
+                    if (selectData === "data_predict") {
+                      setWork("predict");
+                    } else if (selectData === "data_interpolate") {
+                      setWork("interpolate");
+                    }
                   }}
+                  disabled={!selectData || !uploadedFileUrl} // 버튼 비활성화 조건 추가
                   sx={{ width: "150px" }}
                 >
                   {isLoading ? "작업 진행 중" : "작업 시작"}
@@ -233,7 +259,17 @@ const ModelTimeSeriesProcesser = (props) => {
                 }}
               >
                 <Chip
-                  label={"구간별 결측치 보간"}
+                  label={
+                    <Box display='flex' alignItems='center' gap='5px'>
+                      구간별 결측치 보간
+                      <Tooltip
+                        title='작업이 수행되는 동안 실시간으로 데이터를 가져옵니다.'
+                        placement='right'
+                      >
+                        <InfoIcon color='primary' />
+                      </Tooltip>
+                    </Box>
+                  }
                   sx={{
                     fontSize: "15px",
                     marginBottom: "10px",
@@ -250,7 +286,17 @@ const ModelTimeSeriesProcesser = (props) => {
                     border: "1px solid gainsboro",
                   }}
                 >
-                  <ModelDataPredictionBox />
+                  {isStarted ? (
+                    <ModelDataPredictionBox
+                      selectedRowData={selectedRowData}
+                      selectData={selectData}
+                      work={work}
+                    />
+                  ) : (
+                    <Typography variant='h6'>
+                      작업이 진행되면 이곳에 데이터가 표시됩니다.
+                    </Typography>
+                  )}
                 </Box>
               </Box>
 
