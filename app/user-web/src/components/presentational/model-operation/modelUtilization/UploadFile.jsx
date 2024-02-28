@@ -3,6 +3,7 @@ import {
   Button,
   Box,
   Typography,
+  Tooltip,
   Modal,
   CircularProgress,
 } from "@mui/material";
@@ -29,6 +30,11 @@ const UploadFile = (props) => {
     setProgressBarOpend(false);
   };
 
+  const extractFilenameFromUrl = (url) => {
+    const urlParts = url.split("?");
+    return urlParts[0]; // '?' 이전의 부분을 반환
+  };
+
   const handleUpload = async (event) => {
     if (event.target.files && event.target.files.length > 0) {
       const uploadedFile = event.target.files[0];
@@ -43,14 +49,14 @@ const UploadFile = (props) => {
         const { uploadUrl, downloadUrl } = await getPreSignedUrl(
           uploadedFile.name
         );
-
         setFileName(uploadedFile.name);
         displayProgressBar();
 
         await uploadFileToS3(uploadUrl, uploadedFile, setFileUploadPercent);
+        const cleanUrl = extractFilenameFromUrl(downloadUrl);
 
         closeProgressBar();
-        setUploadedFileUrl(downloadUrl);
+        setUploadedFileUrl(cleanUrl);
       } catch (err) {
         if (err.response.data.errors) {
           alert(err.response.data.errors[0].defaultMessage);
@@ -69,20 +75,31 @@ const UploadFile = (props) => {
 
   return (
     <Box display='flex' alignItems='center' sx={{ marginBlock: "10px" }}>
-      <Button
-        variant='contained'
-        component='label'
-        startIcon={<CloudUploadIcon />}
+      <Tooltip
+        title={
+          <>
+            수행 작업 가능 데이터 조건
+            <br /> - 데이터 보간: 최대 1일치 데이터
+            <br /> - 데이터 예측: Window_Size의 2배 이상 길이의 데이터
+          </>
+        }
+        placement='right'
       >
-        파일 업로드
-        <input
-          id='file'
-          type='file'
-          hidden
-          onChange={handleUpload}
-          accept='.csv'
-        />
-      </Button>
+        <Button
+          variant='contained'
+          component='label'
+          startIcon={<CloudUploadIcon />}
+        >
+          파일 업로드
+          <input
+            id='file'
+            type='file'
+            hidden
+            onChange={handleUpload}
+            accept='.csv'
+          />
+        </Button>
+      </Tooltip>
       {fileName && (
         <Box ml={2}>
           <Typography variant='body1'>{fileName}</Typography>

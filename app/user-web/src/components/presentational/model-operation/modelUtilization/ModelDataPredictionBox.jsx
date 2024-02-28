@@ -8,7 +8,6 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Button,
 } from "@mui/material";
 import ConzonAreaChartComponent from "../modelChart/ConzonAreaChartComponent";
 import ConzonGuageComponent from "../modelChart/ConzonGuageComponent";
@@ -20,7 +19,11 @@ import {
   getConzonRowNames,
   getConzonRowDatesById,
   getConzonRowData,
+  getConzonImputatedNames,
+  getConzonImputatedDatesById,
+  getConzonImputatedData,
 } from "../../../../api/api";
+import ModelUtilizationDataDownloadBox from "./ModelUtilizationDataDownloadBox";
 
 const SpaceBetweenFlexBox = styled(Box)({
   display: "flex",
@@ -29,30 +32,43 @@ const SpaceBetweenFlexBox = styled(Box)({
   margin: "10px",
 });
 
-const SelectConzon = ({ onChange }) => {
+const SelectConzon = ({ selectData, onChange }) => {
   const [conzons, setConzons] = useState([]);
   const [selectedConzon, setSelectedConzon] = useState("");
 
-  useEffect(() => {
-    const fetchConzonNames = async () => {
-      try {
-        const fetchedConzons = await getConzonRowNames();
-
-        setConzons(fetchedConzons);
-        if (fetchedConzons.length > 0) {
-          const firstConzonId = fetchedConzons[0].conzonId;
-          setSelectedConzon(firstConzonId);
-          if (onChange) {
-            onChange(firstConzonId);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch conzons", error);
+  const fetchConzonNames = async () => {
+    try {
+      let fetchedConzons;
+      if (selectData === "data_predict") {
+        fetchedConzons = await getConzonRowNames();
+      } else if (selectData === "data_interpolate") {
+        fetchedConzons = await getConzonImputatedNames();
       }
-    };
+      setConzons(fetchedConzons || []);
 
+      // 현재 선택된 값이 새로운 리스트에 있는지 확인
+      if (
+        !fetchedConzons.some((conzon) => conzon.conzonId === selectedConzon)
+      ) {
+        // 새로운 리스트에 현재 선택된 값이 없다면, 첫 번째 값을 선택
+        const firstConzonId =
+          fetchedConzons.length > 0 ? fetchedConzons[0].conzonId : "";
+        setSelectedConzon(firstConzonId);
+        if (onChange) {
+          onChange(firstConzonId);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch conzons", error);
+    }
+  };
+
+  useEffect(() => {
     fetchConzonNames();
-  }, [onChange]);
+    const intervalId = setInterval(fetchConzonNames, 15000);
+
+    return () => clearInterval(intervalId);
+  }, [selectedConzon, onChange]);
 
   return (
     <FormControl variant='outlined' sx={{ width: "300px" }}>
@@ -78,31 +94,43 @@ const SelectConzon = ({ onChange }) => {
   );
 };
 
-const SelectDate = ({ value, onChange }) => {
+const SelectDate = ({ selectData, value, onChange }) => {
   const [allowedDates, setAllowedDates] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
-  useEffect(() => {
-    const fetchDates = async () => {
-      try {
-        const fetchedDates = await getConzonRowDatesById();
-        const formattedDates = fetchedDates.map((item) => item.conzonDate);
-        setAllowedDates(formattedDates);
+  const fetchDates = async () => {
+    try {
+      let fetchedDates;
+      if (selectData === "data_predict") {
+        fetchedDates = await getConzonRowDatesById();
+      } else if (selectData === "data_interpolate") {
+        fetchedDates = await getConzonImputatedDatesById();
+      }
+      const formattedDates = fetchedDates.map((item) => item.conzonDate);
+      setAllowedDates(formattedDates);
 
-        // 첫 번째 값을 selectedDate로 설정
+      // 현재 선택된 날짜가 새로운 리스트에 있는지 확인
+      if (!formattedDates.includes(dayjs(selectedDate).format("YYYY-MM-DD"))) {
+        // 새로운 리스트에 현재 선택된 날짜가 없다면, 첫 번째 값을 선택
         if (formattedDates.length > 0) {
-          setSelectedDate(dayjs(formattedDates[0]));
+          const newSelectedDate = dayjs(formattedDates[0]);
+          setSelectedDate(newSelectedDate);
           if (onChange) {
-            onChange(dayjs(formattedDates[0]));
+            onChange(newSelectedDate);
           }
         }
-      } catch (error) {
-        console.error("Failed to fetch dates", error);
       }
-    };
+    } catch (error) {
+      console.error("Failed to fetch dates", error);
+    }
+  };
 
+  useEffect(() => {
     fetchDates();
-  }, [onChange]);
-  console.log(selectedDate);
+    const intervalId = setInterval(fetchDates, 15000);
+
+    return () => clearInterval(intervalId);
+  }, [selectedDate, onChange]);
+  // console.log(selectedDate);
   const shouldDisableDate = (date) => {
     return !allowedDates.includes(dayjs(date).format("YYYY-MM-DD"));
   };
@@ -177,61 +205,48 @@ const SpeedInfo = () => {
 };
 
 const ModelDataPredictionBox = (props) => {
-  // const { open, onClose, selectedRowData } = props;
+  const { selectData, work } = props;
   const [selectedDate, setSelectedDate] = useState(null);
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [selectedConzon, setSelectedConzon] = useState("");
   const [conzonData, setConzonData] = useState(null);
-
   const handleDateChange = useCallback((newValue) => {
     setSelectedDate(dayjs(newValue));
   }, []); // dependencies 배열이 비어있으므로 컴포넌트가 마운트될 때만 함수가 생성됩니다.
 
   const handleTooltipChange = useCallback((speed) => {
-    setCurrentSpeed(speed);
+    // 소수점 둘째 자리까지만 나타내기
+    const formattedSpeed = parseFloat(speed).toFixed(2);
+    setCurrentSpeed(formattedSpeed);
   }, []); // dependencies 배열이 비어있으므로 컴포넌트가 마운트될 때만 함수가 생성됩니다.
 
   useEffect(() => {
-    // selectedConzon과 selectedDate가 변경될 때마다 데이터를 가져옵니다.
-    const fetchConzonData = async () => {
+    const fetchData = async () => {
       if (selectedConzon && selectedDate) {
         try {
-          const data = await getConzonRowData(
-            selectedConzon,
-            dayjs(selectedDate).format("YYYY-MM-DD")
-          );
-          setConzonData(JSON.parse(data[0].conzonData));
+          let data;
+          if (selectData === "data_predict") {
+            data = await getConzonRowData(
+              selectedConzon,
+              dayjs(selectedDate).format("YYYY-MM-DD")
+            );
+          } else if (selectData === "data_interpolate") {
+            data = await getConzonImputatedData(
+              selectedConzon,
+              dayjs(selectedDate).format("YYYY-MM-DD")
+            );
+          }
+          setConzonData(data ? JSON.parse(data[0].conzonData) : null);
         } catch (error) {
           console.error("Failed to fetch conzon data", error);
         }
       }
     };
 
-    fetchConzonData();
-  }, [selectedConzon, selectedDate]);
+    fetchData();
+  }, [selectedConzon, selectedDate, selectData]);
   return (
     <>
-      {/* <Dialog open={open} onClose={onClose} fullWidth maxWidth='lg'>
-        <DialogTitle>
-          <Box
-            display='flex'
-            justifyContent='space-between'
-            alignItems='center'
-          >
-            <Typography variant='h5'>예측 데이터 분석</Typography>
-            <IconButton
-              edge='end'
-              color='inherit'
-              onClick={onClose}
-              aria-label='close'
-            >
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
-        <Divider />
-        <DialogContent>
-          <ContentWrappingBox> */}
       <Box
         sx={{
           overflow: "auto",
@@ -241,11 +256,13 @@ const ModelDataPredictionBox = (props) => {
         }}
       >
         <SpaceBetweenFlexBox>
-          <SelectConzon onChange={setSelectedConzon} />
-          <SelectDate value={selectedDate} onChange={handleDateChange} />
-          <Button variant='outlined' sx={{ height: "56px" }} disabled>
-            데이터 다운로드
-          </Button>
+          <SelectConzon onChange={setSelectedConzon} selectData={selectData} />
+          <SelectDate
+            value={selectedDate}
+            onChange={handleDateChange}
+            selectData={selectData}
+          />
+          <ModelUtilizationDataDownloadBox work={work} />
         </SpaceBetweenFlexBox>
 
         <SpaceBetweenFlexBox>
@@ -264,9 +281,6 @@ const ModelDataPredictionBox = (props) => {
           </Box>
         </SpaceBetweenFlexBox>
       </Box>
-      {/* </ContentWrappingBox>
-        </DialogContent>
-      </Dialog> */}
     </>
   );
 };
